@@ -1,0 +1,60 @@
+name: Download and Upload to Internet Archive
+
+on:
+  workflow_dispatch:
+    inputs:
+      playlist_url:
+        description: 'YouTube playlist URL'
+        required: true
+        type: string
+      collection_name:
+        description: 'Collection name on archive.org (leave blank to use playlist title)'
+        required: false
+        type: string
+      max_filesize_mb:
+        description: 'Skip files larger than this size in MB (default 200)'
+        required: false
+        default: '200'
+        type: string
+
+jobs:
+  download-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install yt-dlp internetarchive
+
+      - name: Configure Internet Archive
+        env:
+          IA_EMAIL: ${{ secrets.IA_EMAIL }}
+          IA_PASSWORD: ${{ secrets.IA_PASSWORD }}
+        run: |
+          python -c "import internetarchive as ia; ia.configure('$IA_EMAIL', '$IA_PASSWORD')"
+
+      - name: Run downloader
+        env:
+          IA_EMAIL: ${{ secrets.IA_EMAIL }}
+          IA_PASSWORD: ${{ secrets.IA_PASSWORD }}
+        run: |
+          python downloader.py \
+            "${{ github.event.inputs.playlist_url }}" \
+            "${{ github.event.inputs.collection_name }}" \
+            "${{ github.event.inputs.max_filesize_mb }}"
+
+      - name: Commit updated completed.json
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add completed.json
+          git diff --staged --quiet || git commit -m "update completed.json"
+          git push
