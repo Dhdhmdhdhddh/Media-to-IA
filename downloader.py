@@ -86,11 +86,15 @@ def main():
 
     print(f'\nfetching playlist info...')
     try:
-        with yt_dlp.YoutubeDL({
+        fetch_opts = {
             'quiet': True,
             'extract_flat': True,
             'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-        }) as ydl:
+        }
+        if cookiefile:
+            fetch_opts['cookiefile'] = cookiefile
+
+        with yt_dlp.YoutubeDL(fetch_opts) as ydl:
             playlist_info = ydl.extract_info(url, download=False)
             entries = [e for e in playlist_info.get('entries', []) if e is not None]
             playlist_title = clean_title(playlist_info.get('title', 'untitled'))
