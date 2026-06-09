@@ -1,0 +1,2 @@
+yt_dlp>=2024.1.1
+internetarchive>=3.5.0
