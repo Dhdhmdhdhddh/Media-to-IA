@@ -4,9 +4,11 @@ import sys
 import json
 import time
 import re
+import tempfile
 import internetarchive as ia
 
-SAVE_PATH = '/tmp/downloads'
+# Use cross-platform temp directory
+SAVE_PATH = os.path.join(tempfile.gettempdir(), 'media-to-ia-downloads')
 COMPLETED_FILE = 'completed.json'
 UPLOAD_DELAY = 15
 
@@ -23,12 +25,19 @@ def clean_identifier(title):
 def load_completed():
     if not os.path.exists(COMPLETED_FILE):
         return {}
-    with open(COMPLETED_FILE) as f:
-        return json.load(f)
+    try:
+        with open(COMPLETED_FILE) as f:
+            return json.load(f)
+    except Exception as e:
+        print(f'[err] failed to load completed.json: {e}')
+        return {}
 
 def save_completed(data):
-    with open(COMPLETED_FILE, 'w') as f:
-        json.dump(data, f, indent=2)
+    try:
+        with open(COMPLETED_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        print(f'[err] failed to save completed.json: {e}')
 
 def upload_file(filepath, identifier, collection_title):
     filename = os.path.basename(filepath)
@@ -54,6 +63,7 @@ def upload_file(filepath, identifier, collection_title):
 def main():
     if len(sys.argv) < 2:
         print('[err] no URL provided')
+        print('usage: python downloader.py <url> [custom_name] [max_mb]')
         sys.exit(1)
 
     url = sys.argv[1].strip()
@@ -70,15 +80,23 @@ def main():
     os.makedirs(SAVE_PATH, exist_ok=True)
 
     print(f'\nfetching playlist info...')
-    with yt_dlp.YoutubeDL({
-        'quiet': True,
-        'extract_flat': True,
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-    }) as ydl:
-        playlist_info = ydl.extract_info(url, download=False)
-        entries = [e for e in playlist_info.get('entries', []) if e is not None]
-        playlist_title = clean_title(playlist_info.get('title', 'untitled'))
-        total = len(entries)
+    try:
+        with yt_dlp.YoutubeDL({
+            'quiet': True,
+            'extract_flat': True,
+            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        }) as ydl:
+            playlist_info = ydl.extract_info(url, download=False)
+            entries = [e for e in playlist_info.get('entries', []) if e is not None]
+            playlist_title = clean_title(playlist_info.get('title', 'untitled'))
+            total = len(entries)
+    except Exception as e:
+        print(f'[err] failed to fetch playlist: {e}')
+        sys.exit(1)
+
+    if total == 0:
+        print('[err] no videos found in playlist')
+        sys.exit(1)
 
     collection_title = custom_name if custom_name else playlist_title
     identifier = clean_identifier(collection_title)
@@ -95,48 +113,54 @@ def main():
     fail_count = 0
 
     for i, entry in enumerate(entries, 1):
-        video_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry['id']}"
-        print(f'[{i}/{total}] downloading...')
+        try:
+            video_id = entry.get('id')
+            video_url = entry.get('url') or f"https://www.youtube.com/watch?v={video_id}"
+            print(f'[{i}/{total}] downloading...')
 
-        ydl_opts = {
-            'format': '18/best[ext=mp4]/best',
-            'outtmpl': os.path.join(SAVE_PATH, '%(title)s.%(ext)s'),
-            'ignoreerrors': True,
-            'noplaylist': True,
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-        }
+            ydl_opts = {
+                'format': '18/best[ext=mp4]/best',
+                'outtmpl': os.path.join(SAVE_PATH, '%(title)s.%(ext)s'),
+                'ignoreerrors': True,
+                'noplaylist': True,
+                'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+            }
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.extract_info(video_url, download=True)
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.extract_info(video_url, download=True)
 
-        files = [f for f in os.listdir(SAVE_PATH) if f.endswith(('.mp4', '.webm', '.m4a'))]
-        if not files:
-            print(f'  [skip] nothing downloaded')
-            skip_count += 1
-            continue
-
-        for f in files:
-            filepath = os.path.join(SAVE_PATH, f)
-            size_mb = os.path.getsize(filepath) / (1024 * 1024)
-
-            if size_mb > max_mb:
-                print(f'  [skip] {f[:50]} is {size_mb:.0f} MB — over {max_mb} MB limit')
-                os.remove(filepath)
+            files = [f for f in os.listdir(SAVE_PATH) if f.endswith(('.mp4', '.webm', '.m4a'))]
+            if not files:
+                print(f'  [skip] nothing downloaded')
                 skip_count += 1
                 continue
 
-            print(f'  size: {size_mb:.1f} MB')
-            success = upload_file(filepath, identifier, collection_title)
-            if success:
-                success_count += 1
-            else:
-                fail_count += 1
-            os.remove(filepath)
-            print(f'  deleted local copy')
+            for f in files:
+                filepath = os.path.join(SAVE_PATH, f)
+                size_mb = os.path.getsize(filepath) / (1024 * 1024)
 
-            if i < total:
-                print(f'  waiting {UPLOAD_DELAY}s...')
-                time.sleep(UPLOAD_DELAY)
+                if size_mb > max_mb:
+                    print(f'  [skip] {f[:50]} is {size_mb:.0f} MB — over {max_mb} MB limit')
+                    os.remove(filepath)
+                    skip_count += 1
+                    continue
+
+                print(f'  size: {size_mb:.1f} MB')
+                success = upload_file(filepath, identifier, collection_title)
+                if success:
+                    success_count += 1
+                else:
+                    fail_count += 1
+                os.remove(filepath)
+                print(f'  deleted local copy')
+
+                if i < total:
+                    print(f'  waiting {UPLOAD_DELAY}s...')
+                    time.sleep(UPLOAD_DELAY)
+        except Exception as e:
+            print(f'  [err] processing video failed: {e}')
+            fail_count += 1
+            continue
 
     print(f'\n=== done ===')
     print(f'uploaded: {success_count}')
@@ -155,4 +179,5 @@ def main():
     save_completed(completed)
     print(f'saved to completed.json')
 
-main()
+if __name__ == '__main__':
+    main()
