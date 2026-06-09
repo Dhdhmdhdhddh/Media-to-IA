@@ -39,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: pip install yt-dlp internetarchive
 
+      - name: Check versions
+        run: yt-dlp --version && node --version
+
       - name: Configure Internet Archive
         env:
           IA_EMAIL: ${{ secrets.IA_EMAIL }}
