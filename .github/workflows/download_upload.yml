@@ -41,6 +41,9 @@ jobs:
         run: |
           python -c "import internetarchive as ia; ia.configure('$IA_EMAIL', '$IA_PASSWORD')"
 
+      - name: Write YouTube cookies
+        run: echo "${{ secrets.YT_COOKIES }}" > cookies.txt
+
       - name: Run downloader
         env:
           IA_EMAIL: ${{ secrets.IA_EMAIL }}
@@ -49,7 +52,8 @@ jobs:
           python downloader.py \
             "${{ github.event.inputs.playlist_url }}" \
             "${{ github.event.inputs.collection_name }}" \
-            "${{ github.event.inputs.max_filesize_mb }}"
+            "${{ github.event.inputs.max_filesize_mb }}" \
+            "cookies.txt"
 
       - name: Commit updated completed.json
         run: |
