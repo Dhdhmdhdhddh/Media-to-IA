@@ -7,7 +7,6 @@ import re
 import tempfile
 import internetarchive as ia
 
-# Use cross-platform temp directory
 SAVE_PATH = os.path.join(tempfile.gettempdir(), 'media-to-ia-downloads')
 COMPLETED_FILE = 'completed.json'
 UPLOAD_DELAY = 15
@@ -63,12 +62,18 @@ def upload_file(filepath, identifier, collection_title):
 def main():
     if len(sys.argv) < 2:
         print('[err] no URL provided')
-        print('usage: python downloader.py <url> [custom_name] [max_mb]')
+        print('usage: python downloader.py <url> [custom_name] [max_mb] [cookiefile]')
         sys.exit(1)
 
     url = sys.argv[1].strip()
     custom_name = sys.argv[2].strip() if len(sys.argv) > 2 and sys.argv[2].strip() else None
     max_mb = float(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].strip() else 200
+    cookiefile = sys.argv[4] if len(sys.argv) > 4 and os.path.exists(sys.argv[4]) else None
+
+    if cookiefile:
+        print(f'using cookies from {cookiefile}')
+    else:
+        print('no cookie file found — some videos may be blocked')
 
     # check if already done
     completed = load_completed()
@@ -125,6 +130,9 @@ def main():
                 'noplaylist': True,
                 'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
             }
+
+            if cookiefile:
+                ydl_opts['cookiefile'] = cookiefile
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.extract_info(video_url, download=True)
