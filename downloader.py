@@ -77,7 +77,7 @@ def make_opts(url, cookiefile, node_path, flat=False):
         opts['extract_flat'] = True
     else:
         opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
-        opts['outtmpl'] = os.path.join(SAVE_PATH, '%(title)s.%(ext)s')
+        opts['outtmpl'] = os.path.join(SAVE_PATH, '%(title)s [%(id)s].%(ext)s')
         opts['ignoreerrors'] = True
         opts['noplaylist'] = True
 
