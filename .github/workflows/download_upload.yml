@@ -1,3 +1,4 @@
+
 name: Download and Upload to Internet Archive
 
 on:
@@ -40,7 +41,7 @@ jobs:
         run: pip install yt-dlp internetarchive
 
       - name: Check versions
-        run: yt-dlp --version && node --version
+        run: yt-dlp --version && node --version && which node
 
       - name: Configure Internet Archive
         env:
@@ -53,7 +54,10 @@ jobs:
         run: echo "${{ secrets.YT_COOKIES }}" > cookies.txt
 
       - name: Test yt-dlp with cookies
-        run: yt-dlp --cookies cookies.txt --list-formats "https://www.youtube.com/watch?v=XT7CtF5ljxY" 2>&1 | head -50
+        run: |
+          node --version
+          which node
+          yt-dlp --verbose --cookies cookies.txt --list-formats "https://www.youtube.com/watch?v=XT7CtF5ljxY" 2>&1 | head -80
 
       - name: Run downloader
         env:
