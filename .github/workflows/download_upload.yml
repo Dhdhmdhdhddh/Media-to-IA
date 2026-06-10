@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       playlist_url:
-        description: 'YouTube playlist URL'
+        description: 'YouTube playlist or video URL'
         required: true
         type: string
       collection_name:
@@ -31,41 +31,37 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Node.js for yt-dlp
+      - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies
         run: pip install "yt-dlp[default]" internetarchive
-
-      - name: Check versions
-        run: yt-dlp --version && node --version && which node
 
       - name: Configure Internet Archive
         env:
           IA_EMAIL: ${{ secrets.IA_EMAIL }}
           IA_PASSWORD: ${{ secrets.IA_PASSWORD }}
         run: |
-          python -c "import internetarchive as ia; ia.configure('$IA_EMAIL', '$IA_PASSWORD')"
+          python -c "import internetarchive as ia; ia.configure(\"$IA_EMAIL\", \"$IA_PASSWORD\")"
 
       - name: Write YouTube cookies
         run: echo "${{ secrets.YT_COOKIES }}" > cookies.txt
-
-      - name: Test yt-dlp with cookies
-        run: |
-          yt-dlp --js-runtimes node --cookies cookies.txt --list-formats "https://www.youtube.com/watch?v=XT7CtF5ljxY" 2>&1 | head -50
 
       - name: Run downloader
         env:
           IA_EMAIL: ${{ secrets.IA_EMAIL }}
           IA_PASSWORD: ${{ secrets.IA_PASSWORD }}
+          NODE_PATH: ${{ steps.setup-node.outputs.node-path }}
         run: |
+          NODE_BIN=$(which node)
           python downloader.py \
             "${{ github.event.inputs.playlist_url }}" \
             "${{ github.event.inputs.collection_name }}" \
             "${{ github.event.inputs.max_filesize_mb }}" \
-            "cookies.txt"
+            "cookies.txt" \
+            "$NODE_BIN"
 
       - name: Commit updated completed.json
         run: |
