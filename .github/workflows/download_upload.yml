@@ -52,6 +52,9 @@ jobs:
       - name: Write YouTube cookies
         run: echo "${{ secrets.YT_COOKIES }}" > cookies.txt
 
+      - name: Test yt-dlp with cookies
+        run: yt-dlp --cookies cookies.txt --list-formats "https://www.youtube.com/watch?v=XT7CtF5ljxY" 2>&1 | head -50
+
       - name: Run downloader
         env:
           IA_EMAIL: ${{ secrets.IA_EMAIL }}
