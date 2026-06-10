@@ -1,4 +1,3 @@
-
 name: Download and Upload to Internet Archive
 
 on:
@@ -38,10 +37,20 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: pip install yt-dlp internetarchive
+        run: |
+          pip install yt-dlp internetarchive
+          npm install -g @distube/ytdl-core 2>/dev/null || true
+
+      - name: Install yt-dlp JS challenge solver
+        run: |
+          pip install "yt-dlp[default]" 2>/dev/null || true
+          curl -L https://github.com/yt-dlp/yt-dlp/raw/master/yt_dlp/jsinterp/jsie/node.js -o /usr/local/lib/node_yt_dlp.js 2>/dev/null || true
 
       - name: Check versions
-        run: yt-dlp --version && node --version && which node
+        run: |
+          yt-dlp --version
+          node --version
+          which node
 
       - name: Configure Internet Archive
         env:
@@ -55,9 +64,7 @@ jobs:
 
       - name: Test yt-dlp with cookies
         run: |
-          node --version
-          which node
-          yt-dlp --verbose --cookies cookies.txt --list-formats "https://www.youtube.com/watch?v=XT7CtF5ljxY" 2>&1 | head -80
+          yt-dlp --verbose --cookies cookies.txt --list-formats "https://www.youtube.com/watch?v=XT7CtF5ljxY" 2>&1 | head -50
 
       - name: Run downloader
         env:
