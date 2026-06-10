@@ -6,5 +6,13 @@
     "skipped": 0,
     "failed": 0,
     "date": "2026-06-10"
+  },
+  "https://m.youtube.com/playlist?list=PLZ9z7R2emdVqpbq9egGcQ8_cGzYEKjO3O": {
+    "collection": "April 9 2015 Rochelle-Fairdale EF4 Tornado Media",
+    "identifier": "April-9-2015-Rochelle-Fairdale-EF4-Tornado-Media",
+    "uploaded": 98,
+    "skipped": 2,
+    "failed": 0,
+    "date": "2026-06-10"
   }
 }
