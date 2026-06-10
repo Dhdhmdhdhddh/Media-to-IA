@@ -62,18 +62,23 @@ def upload_file(filepath, identifier, collection_title):
 def main():
     if len(sys.argv) < 2:
         print('[err] no URL provided')
-        print('usage: python downloader.py <url> [custom_name] [max_mb] [cookiefile]')
         sys.exit(1)
 
     url = sys.argv[1].strip()
     custom_name = sys.argv[2].strip() if len(sys.argv) > 2 and sys.argv[2].strip() else None
     max_mb = float(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].strip() else 200
     cookiefile = sys.argv[4] if len(sys.argv) > 4 and os.path.exists(sys.argv[4]) else None
+    node_path = sys.argv[5] if len(sys.argv) > 5 and os.path.exists(sys.argv[5]) else None
 
     if cookiefile:
         print(f'using cookies from {cookiefile}')
     else:
-        print('no cookie file found — some videos may be blocked')
+        print('no cookie file found')
+
+    if node_path:
+        print(f'using node from {node_path}')
+    else:
+        print('no node path provided')
 
     completed = load_completed()
     if url in completed:
@@ -83,39 +88,45 @@ def main():
 
     os.makedirs(SAVE_PATH, exist_ok=True)
 
-    print(f'\nfetching playlist info...')
-    try:
-        fetch_opts = {
-            'quiet': True,
-            'extract_flat': True,
+    # build shared ydl options
+    def make_opts(flat=False):
+        opts = {
             'extractor_args': {'youtube': {'player_client': ['web']}},
-            'js_runtimes': ['node'],
         }
+        if node_path:
+            opts['js_runtimes'] = {f'node': {'path': node_path}}
         if cookiefile:
-            fetch_opts['cookiefile'] = cookiefile
+            opts['cookiefile'] = cookiefile
+        if flat:
+            opts['quiet'] = True
+            opts['extract_flat'] = True
+        else:
+            opts['format'] = '18/best[ext=mp4]/best'
+            opts['outtmpl'] = os.path.join(SAVE_PATH, '%(title)s.%(ext)s')
+            opts['ignoreerrors'] = True
+            opts['noplaylist'] = True
+        return opts
 
-        with yt_dlp.YoutubeDL(fetch_opts) as ydl:
-            playlist_info = ydl.extract_info(url, download=False)
-            entries = [e for e in playlist_info.get('entries', []) if e is not None]
-            playlist_title = clean_title(playlist_info.get('title', 'untitled'))
+    print(f'\nfetching info...')
+    try:
+        with yt_dlp.YoutubeDL(make_opts(flat=True)) as ydl:
+            info = ydl.extract_info(url, download=False)
+            is_playlist = info.get('_type') == 'playlist'
+            entries = [e for e in info.get('entries', []) if e is not None] if is_playlist else [info]
+            playlist_title = clean_title(info.get('title', 'untitled'))
             total = len(entries)
     except Exception as e:
-        print(f'[err] failed to fetch playlist: {e}')
-        sys.exit(1)
-
-    if total == 0:
-        print('[err] no videos found in playlist')
+        print(f'[err] failed to fetch info: {e}')
         sys.exit(1)
 
     collection_title = custom_name if custom_name else playlist_title
     identifier = clean_identifier(collection_title)
 
-    print(f'playlist: {playlist_title}')
+    print(f'title: {playlist_title}')
     print(f'videos: {total}')
     print(f'collection: {collection_title}')
     print(f'identifier: {identifier}')
-    print(f'max file size: {max_mb} MB')
-    print(f'mode: download-upload-delete\n')
+    print(f'max file size: {max_mb} MB\n')
 
     success_count = 0
     skip_count = 0
@@ -127,19 +138,7 @@ def main():
             video_url = entry.get('url') or f"https://www.youtube.com/watch?v={video_id}"
             print(f'[{i}/{total}] downloading...')
 
-            ydl_opts = {
-                'format': '18/best[ext=mp4]/best',
-                'outtmpl': os.path.join(SAVE_PATH, '%(title)s.%(ext)s'),
-                'ignoreerrors': True,
-                'noplaylist': True,
-                'extractor_args': {'youtube': {'player_client': ['web']}},
-                'js_runtimes': ['node'],
-            }
-
-            if cookiefile:
-                ydl_opts['cookiefile'] = cookiefile
-
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with yt_dlp.YoutubeDL(make_opts(flat=False)) as ydl:
                 ydl.extract_info(video_url, download=True)
 
             files = [f for f in os.listdir(SAVE_PATH) if f.endswith(('.mp4', '.webm', '.m4a'))]
@@ -153,7 +152,7 @@ def main():
                 size_mb = os.path.getsize(filepath) / (1024 * 1024)
 
                 if size_mb > max_mb:
-                    print(f'  [skip] {f[:50]} is {size_mb:.0f} MB — over {max_mb} MB limit')
+                    print(f'  [skip] {f[:50]} is {size_mb:.0f} MB — over limit')
                     os.remove(filepath)
                     skip_count += 1
                     continue
@@ -171,7 +170,7 @@ def main():
                     print(f'  waiting {UPLOAD_DELAY}s...')
                     time.sleep(UPLOAD_DELAY)
         except Exception as e:
-            print(f'  [err] processing video failed: {e}')
+            print(f'  [err] {e}')
             fail_count += 1
             continue
 
