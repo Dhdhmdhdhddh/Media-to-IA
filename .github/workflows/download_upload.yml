@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       playlist_url:
-        description: 'YouTube playlist or video URL'
+        description: 'URL (YouTube, Twitter, TikTok, etc)'
         required: true
         type: string
       collection_name:
-        description: 'Collection name on archive.org (leave blank to use playlist title)'
+        description: 'Collection name on archive.org (leave blank to use title)'
         required: false
         type: string
       max_filesize_mb:
@@ -53,7 +53,6 @@ jobs:
         env:
           IA_EMAIL: ${{ secrets.IA_EMAIL }}
           IA_PASSWORD: ${{ secrets.IA_PASSWORD }}
-          NODE_PATH: ${{ steps.setup-node.outputs.node-path }}
         run: |
           NODE_BIN=$(which node)
           python downloader.py \
