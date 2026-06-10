@@ -75,7 +75,6 @@ def main():
     else:
         print('no cookie file found — some videos may be blocked')
 
-    # check if already done
     completed = load_completed()
     if url in completed:
         print(f'[skip] already completed: {url}')
@@ -89,7 +88,8 @@ def main():
         fetch_opts = {
             'quiet': True,
             'extract_flat': True,
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+            'extractor_args': {'youtube': {'player_client': ['web']}},
+            'js_runtimes': ['node'],
         }
         if cookiefile:
             fetch_opts['cookiefile'] = cookiefile
@@ -132,7 +132,8 @@ def main():
                 'outtmpl': os.path.join(SAVE_PATH, '%(title)s.%(ext)s'),
                 'ignoreerrors': True,
                 'noplaylist': True,
-                'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+                'extractor_args': {'youtube': {'player_client': ['web']}},
+                'js_runtimes': ['node'],
             }
 
             if cookiefile:
