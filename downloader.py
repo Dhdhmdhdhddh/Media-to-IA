@@ -11,6 +11,9 @@ SAVE_PATH = os.path.join(tempfile.gettempdir(), 'media-to-ia-downloads')
 COMPLETED_FILE = 'completed.json'
 UPLOAD_DELAY = 15
 
+def is_youtube(url):
+    return any(x in url for x in ['youtube.com', 'youtu.be'])
+
 def clean_title(title):
     title = re.sub(r'#\w+', '', title)
     title = re.sub(r'@\w+', '', title)
@@ -48,7 +51,7 @@ def upload_file(filepath, identifier, collection_title):
             metadata={
                 'title': collection_title,
                 'mediatype': 'movies',
-                'description': 'Tornado footage archive',
+                'description': 'Archived media',
                 'creator': 'Media-to-IA',
                 'date': time.strftime('%Y-%m-%d'),
             }
@@ -58,6 +61,27 @@ def upload_file(filepath, identifier, collection_title):
     except Exception as e:
         print(f'  [err] upload failed: {e}')
         return False
+
+def make_opts(url, cookiefile, node_path, flat=False):
+    opts = {}
+
+    if is_youtube(url):
+        opts['extractor_args'] = {'youtube': {'player_client': ['web']}}
+        if node_path:
+            opts['js_runtimes'] = {'node': {'path': node_path}}
+        if cookiefile:
+            opts['cookiefile'] = cookiefile
+
+    if flat:
+        opts['quiet'] = True
+        opts['extract_flat'] = True
+    else:
+        opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+        opts['outtmpl'] = os.path.join(SAVE_PATH, '%(title)s.%(ext)s')
+        opts['ignoreerrors'] = True
+        opts['noplaylist'] = True
+
+    return opts
 
 def main():
     if len(sys.argv) < 2:
@@ -70,15 +94,12 @@ def main():
     cookiefile = sys.argv[4] if len(sys.argv) > 4 and os.path.exists(sys.argv[4]) else None
     node_path = sys.argv[5] if len(sys.argv) > 5 and os.path.exists(sys.argv[5]) else None
 
+    print(f'url: {url}')
+    print(f'youtube: {is_youtube(url)}')
     if cookiefile:
-        print(f'using cookies from {cookiefile}')
-    else:
-        print('no cookie file found')
-
+        print(f'cookies: {cookiefile}')
     if node_path:
-        print(f'using node from {node_path}')
-    else:
-        print('no node path provided')
+        print(f'node: {node_path}')
 
     completed = load_completed()
     if url in completed:
@@ -88,33 +109,28 @@ def main():
 
     os.makedirs(SAVE_PATH, exist_ok=True)
 
-    # build shared ydl options
-    def make_opts(flat=False):
-        opts = {
-            'extractor_args': {'youtube': {'player_client': ['web']}},
-        }
-        if node_path:
-            opts['js_runtimes'] = {f'node': {'path': node_path}}
-        if cookiefile:
-            opts['cookiefile'] = cookiefile
-        if flat:
-            opts['quiet'] = True
-            opts['extract_flat'] = True
-        else:
-            opts['format'] = '18/best[ext=mp4]/best'
-            opts['outtmpl'] = os.path.join(SAVE_PATH, '%(title)s.%(ext)s')
-            opts['ignoreerrors'] = True
-            opts['noplaylist'] = True
-        return opts
-
     print(f'\nfetching info...')
     try:
-        with yt_dlp.YoutubeDL(make_opts(flat=True)) as ydl:
+        with yt_dlp.YoutubeDL(make_opts(url, cookiefile, node_path, flat=True)) as ydl:
             info = ydl.extract_info(url, download=False)
             is_playlist = info.get('_type') == 'playlist'
-            entries = [e for e in info.get('entries', []) if e is not None] if is_playlist else [info]
             playlist_title = clean_title(info.get('title', 'untitled'))
-            total = len(entries)
+
+            if is_playlist:
+                entries = [e for e in info.get('entries', []) if e is not None]
+                total = len(entries)
+                # for playlists use original URLs not flat entries
+                video_urls = []
+                for e in entries:
+                    vid_id = e.get('id')
+                    if is_youtube(url):
+                        video_urls.append(f"https://www.youtube.com/watch?v={vid_id}")
+                    else:
+                        video_urls.append(e.get('url') or e.get('webpage_url', ''))
+            else:
+                total = 1
+                video_urls = [url]
+
     except Exception as e:
         print(f'[err] failed to fetch info: {e}')
         sys.exit(1)
@@ -132,16 +148,14 @@ def main():
     skip_count = 0
     fail_count = 0
 
-    for i, entry in enumerate(entries, 1):
+    for i, video_url in enumerate(video_urls, 1):
         try:
-            video_id = entry.get('id')
-            video_url = entry.get('url') or f"https://www.youtube.com/watch?v={video_id}"
-            print(f'[{i}/{total}] downloading...')
+            print(f'[{i}/{total}] downloading {video_url[:60]}...')
 
-            with yt_dlp.YoutubeDL(make_opts(flat=False)) as ydl:
+            with yt_dlp.YoutubeDL(make_opts(video_url, cookiefile, node_path, flat=False)) as ydl:
                 ydl.extract_info(video_url, download=True)
 
-            files = [f for f in os.listdir(SAVE_PATH) if f.endswith(('.mp4', '.webm', '.m4a'))]
+            files = [f for f in os.listdir(SAVE_PATH) if f.endswith(('.mp4', '.webm', '.m4a', '.mkv'))]
             if not files:
                 print(f'  [skip] nothing downloaded')
                 skip_count += 1
