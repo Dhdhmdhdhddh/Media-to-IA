@@ -115,10 +115,6 @@ Internet Archive credentials are stored via `ia configure`. Ensure your account 
 
 Contributions are welcome! Please feel free to submit issues or pull requests.
 
-## 📄 License
-
-[Add your license here]
-
 ## ⚠️ Disclaimer
 
 Only download and archive content you have the right to distribute. Respect copyright laws and the terms of service of media platforms.
