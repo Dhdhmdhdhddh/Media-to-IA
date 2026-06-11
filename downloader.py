@@ -155,6 +155,7 @@ def main():
     max_mb = float(sys.argv[3]) if len(sys.argv) > 3 and sys.argv[3].strip() else 200
     cookiefile = sys.argv[4] if len(sys.argv) > 4 and os.path.exists(sys.argv[4]) else None
     node_path = sys.argv[5] if len(sys.argv) > 5 and os.path.exists(sys.argv[5]) else None
+    max_videos = int(sys.argv[6]) if len(sys.argv) > 6 and sys.argv[6].strip() else None
 
     source_urls = split_urls(raw_url)
     multi = len(source_urls) > 1
@@ -207,6 +208,10 @@ def main():
 
     if multi and dup_count:
         print(f'  removed {dup_count} duplicate video(s) found across sources')
+
+    if max_videos and len(videos) > max_videos:
+        print(f'  capping at {max_videos} videos (found {len(videos)})')
+        videos = videos[:max_videos]
 
     total = len(videos)
     if total == 0:
