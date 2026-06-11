@@ -144,6 +144,34 @@ def main():
     print(f'identifier: {identifier}')
     print(f'max file size: {max_mb} MB\n')
 
+    # for playlists, sort: unknown-size videos first (original order),
+    # then known-size videos largest to smallest
+    if is_playlist and total > 1:
+        print('checking video sizes to sort largest-first...')
+        sized = []
+        unknown = []
+        size_opts = make_opts(video_urls[0], cookiefile, node_path, flat=False)
+        size_opts['quiet'] = True
+        size_opts['skip_download'] = True
+        size_opts.pop('outtmpl', None)
+
+        for idx, vurl in enumerate(video_urls):
+            try:
+                with yt_dlp.YoutubeDL({**size_opts}) as ydl:
+                    vinfo = ydl.extract_info(vurl, download=False)
+                size_bytes = vinfo.get('filesize') or vinfo.get('filesize_approx')
+            except Exception:
+                size_bytes = None
+
+            if size_bytes:
+                sized.append((size_bytes, vurl))
+            else:
+                unknown.append(vurl)
+
+        sized.sort(key=lambda x: x[0], reverse=True)
+        video_urls = unknown + [u for _, u in sized]
+        print(f'sorted: {len(unknown)} unknown-size first, then {len(sized)} sorted largest to smallest\n')
+
     success_count = 0
     skip_count = 0
     fail_count = 0
