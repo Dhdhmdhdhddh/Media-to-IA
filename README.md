@@ -73,7 +73,7 @@ All arguments after the URL are optional.
 python downloader.py "https://youtube.com/playlist?list=PLxxxxxx"
 
 # Single video with custom collection name
-python downloader.py "https://youtu.be/xxxxx" "Joplin EF5 2011"
+python downloader.py "https://youtu.be/xxxxx" "Cool video title"
 
 # With size limit and cookies
 python downloader.py "https://youtube.com/playlist?list=PLxxxxxx" "My Collection" "500" "cookies.txt"
