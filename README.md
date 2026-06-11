@@ -1,6 +1,8 @@
-# Media-to-IA
+# Media-to-IA (Github)
 
 A tool to mass-archive media from YouTube and other platforms directly to the Internet Archive. Built for preserving historical footage of extreme weather events and other time-sensitive content at scale.
+
+This branch runs entirely on GitHub Actions — no local setup or device needed.
 
 ---
 
@@ -8,7 +10,7 @@ A tool to mass-archive media from YouTube and other platforms directly to the In
 
 - Downloads from YouTube playlists, single videos, channels, and 1000+ other sites via yt-dlp
 - Uploads directly to Internet Archive as a single organized collection
-- Download → upload → delete loop keeps local storage usage minimal
+- Download → upload → delete loop keeps storage usage minimal
 - Combine multiple playlists/sources into one collection, automatically removing duplicate videos
 - Sorts videos largest-first so big files don't end up stranded near a run's time limit
 - Skips files over a configurable size limit (useful for avoiding long streams)
@@ -16,15 +18,10 @@ A tool to mass-archive media from YouTube and other platforms directly to the In
 - Automatically retries failed uploads, and aborts a run early if too many fail in a row
 - Tracks completed runs in `completed.json` so you never archive the same thing twice
 - Logs per-video results in `log.json` for auditing and retrying failures later
-- Runs entirely on GitHub Actions — no local setup needed for bulk archiving
 
 ---
 
-## GitHub Actions (recommended)
-
-This is the main way to use the tool. Everything runs on GitHub's servers so you don't need to leave your device on.
-
-### Setup
+## Setup
 
 1. Fork or clone this repo
 2. Add the following secrets under **Settings → Secrets and variables → Actions**:
@@ -37,9 +34,11 @@ This is the main way to use the tool. Everything runs on GitHub's servers so you
 
 3. Go to **Settings → Actions → General → Workflow permissions** and set to **Read and write permissions**
 
-### Workflows
+---
 
-This repo includes three workflows, all under the **Actions** tab:
+## Workflows
+
+All three workflows are under the **Actions** tab:
 
 | Workflow | What it does |
 |----------|--------------|
@@ -77,7 +76,7 @@ This is useful when multiple people have uploaded overlapping footage of the sam
 
 ### Checking stats
 
-Run **Show Archive Stats** from the Actions tab. It reads `completed.json` and `log.json` and prints:
+Run **Show Archive Stats**. It reads `completed.json` and `log.json` and prints:
 
 - total collections archived
 - total videos uploaded / skipped / failed
@@ -87,56 +86,7 @@ Run **Show Archive Stats** from the Actions tab. It reads `completed.json` and `
 
 ### Retrying failures
 
-If `stats` shows failed videos, run **Retry Failed Uploads**. It scans `log.json` for anything marked failed, re-downloads just those specific videos, and re-uploads each one to the correct original archive.org item.
-
----
-
-## Local / Pydroid Usage
-
-You can also run the script locally or on Android via Pydroid 3.
-
-### Install dependencies
-
-```bash
-pip install "yt-dlp[default]" internetarchive
-```
-
-### Configure Internet Archive
-
-```bash
-ia configure
-```
-
-### Run
-
-```bash
-python downloader.py "<URL(s)>" "[collection name]" "[max_mb]" "[cookies.txt]" "[node_path]" "[max_videos]"
-```
-
-URLs can be separated with newlines or commas for multi-source runs. `cookies.txt`, `node_path`, and `max_videos` are optional — Node is only needed for YouTube's JS challenge solving.
-
-**Examples:**
-
-```bash
-# YouTube playlist, auto-named collection
-python downloader.py "https://youtube.com/playlist?list=PLxxxxxx"
-
-# Single video with custom collection name
-python downloader.py "https://youtu.be/xxxxx" "Joplin EF5 2011"
-
-# With size limit and cookies
-python downloader.py "https://youtube.com/playlist?list=PLxxxxxx" "My Collection" "500" "cookies.txt"
-
-# Multiple playlists combined into one deduplicated collection
-python downloader.py "https://youtube.com/playlist?list=AAA,https://youtube.com/playlist?list=BBB" "Combined Collection"
-```
-
-To retry failures or check stats locally:
-
-```bash
-python retry_failed.py "[max_mb]" "[cookies.txt]" "[node_path]"
-python stats.py
-```
+If stats shows failed videos, run **Retry Failed Uploads**. It scans `log.json` for anything marked failed, re-downloads just those specific videos, and re-uploads each one to the correct original archive.org item.
 
 ---
 
@@ -155,7 +105,7 @@ python stats.py
 
 ## completed.json
 
-Every successfully completed run gets logged here with metadata:
+Every successfully completed run gets logged here:
 
 ```json
 {
