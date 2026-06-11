@@ -9,7 +9,11 @@ import internetarchive as ia
 
 SAVE_PATH = os.path.join(tempfile.gettempdir(), 'media-to-ia-downloads')
 COMPLETED_FILE = 'completed.json'
+LOG_FILE = 'log.json'
 UPLOAD_DELAY = 15
+MAX_CONSECUTIVE_FAILS = 10
+UPLOAD_RETRIES = 2  # total attempts per file
+RETRY_DELAY = 20
 
 def is_youtube(url):
     return any(x in url for x in ['youtube.com', 'youtu.be'])
@@ -24,43 +28,59 @@ def clean_identifier(title):
     ident = re.sub(r'-+', '-', ident).strip('-')
     return ident[:80]
 
-def load_completed():
-    if not os.path.exists(COMPLETED_FILE):
+def load_json(path):
+    if not os.path.exists(path):
         return {}
     try:
-        with open(COMPLETED_FILE) as f:
+        with open(path) as f:
             return json.load(f)
     except Exception as e:
-        print(f'[err] failed to load completed.json: {e}')
+        print(f'[err] failed to load {path}: {e}')
         return {}
 
-def save_completed(data):
+def save_json(path, data):
     try:
-        with open(COMPLETED_FILE, 'w') as f:
+        with open(path, 'w') as f:
             json.dump(data, f, indent=2)
     except Exception as e:
-        print(f'[err] failed to save completed.json: {e}')
+        print(f'[err] failed to save {path}: {e}')
 
-def upload_file(filepath, identifier, collection_title):
+def upload_file(filepath, identifier, collection_title, video_meta):
     filename = os.path.basename(filepath)
     print(f'  uploading {filename[:60]}...')
-    try:
-        ia.upload(
-            identifier,
-            files=[filepath],
-            metadata={
-                'title': collection_title,
-                'mediatype': 'movies',
-                'description': 'Archived media',
-                'creator': 'Media-to-IA',
-                'date': time.strftime('%Y-%m-%d'),
-            }
-        )
-        print(f'  [ok] uploaded')
-        return True
-    except Exception as e:
-        print(f'  [err] upload failed: {e}')
-        return False
+
+    description = 'Archived media'
+    if video_meta:
+        parts = []
+        if video_meta.get('uploader'):
+            parts.append(f"Original uploader: {video_meta['uploader']}")
+        if video_meta.get('original_url'):
+            parts.append(f"Original URL: {video_meta['original_url']}")
+        if parts:
+            description = ' | '.join(parts)
+
+    metadata = {
+        'title': collection_title,
+        'mediatype': 'movies',
+        'description': description,
+        'creator': 'Media-to-IA',
+        'date': time.strftime('%Y-%m-%d'),
+    }
+    if video_meta and video_meta.get('original_url'):
+        metadata['source'] = video_meta['original_url']
+
+    for attempt in range(1, UPLOAD_RETRIES + 1):
+        try:
+            ia.upload(identifier, files=[filepath], metadata=metadata)
+            print(f'  [ok] uploaded')
+            return True
+        except Exception as e:
+            print(f'  [err] upload failed (attempt {attempt}/{UPLOAD_RETRIES}): {e}')
+            if attempt < UPLOAD_RETRIES:
+                print(f'  retrying in {RETRY_DELAY}s...')
+                time.sleep(RETRY_DELAY)
+
+    return False
 
 def make_opts(url, cookiefile, node_path, flat=False):
     opts = {}
@@ -101,11 +121,13 @@ def main():
     if node_path:
         print(f'node: {node_path}')
 
-    completed = load_completed()
+    completed = load_json(COMPLETED_FILE)
     if url in completed:
         print(f'[skip] already completed: {url}')
         print(f'uploaded as: {completed[url]["collection"]}')
         sys.exit(0)
+
+    log_data = load_json(LOG_FILE)
 
     os.makedirs(SAVE_PATH, exist_ok=True)
 
@@ -175,63 +197,117 @@ def main():
     success_count = 0
     skip_count = 0
     fail_count = 0
+    consecutive_fails = 0
+    aborted = False
+    run_log = []
 
     for i, video_url in enumerate(video_urls, 1):
+        entry_log = {'url': video_url, 'status': None, 'title': None, 'size_mb': None}
         try:
             print(f'[{i}/{total}] downloading {video_url[:60]}...')
 
             with yt_dlp.YoutubeDL(make_opts(video_url, cookiefile, node_path, flat=False)) as ydl:
-                ydl.extract_info(video_url, download=True)
+                vinfo = ydl.extract_info(video_url, download=True)
+
+            video_title = clean_title(vinfo.get('title', '')) if vinfo else None
+            video_uploader = vinfo.get('uploader') if vinfo else None
+            entry_log['title'] = video_title
+            entry_log['id'] = vinfo.get('id') if vinfo else None
 
             files = [f for f in os.listdir(SAVE_PATH) if f.endswith(('.mp4', '.webm', '.m4a', '.mkv'))]
             if not files:
                 print(f'  [skip] nothing downloaded')
                 skip_count += 1
+                entry_log['status'] = 'skip_no_file'
+                run_log.append(entry_log)
                 continue
 
             for f in files:
                 filepath = os.path.join(SAVE_PATH, f)
                 size_mb = os.path.getsize(filepath) / (1024 * 1024)
+                entry_log['size_mb'] = round(size_mb, 1)
 
                 if size_mb > max_mb:
                     print(f'  [skip] {f[:50]} is {size_mb:.0f} MB — over limit')
                     os.remove(filepath)
                     skip_count += 1
+                    entry_log['status'] = 'skip_size'
                     continue
 
                 print(f'  size: {size_mb:.1f} MB')
-                success = upload_file(filepath, identifier, collection_title)
+
+                video_meta = {
+                    'uploader': video_uploader,
+                    'original_url': video_url,
+                }
+                success = upload_file(filepath, identifier, collection_title, video_meta)
                 if success:
                     success_count += 1
+                    consecutive_fails = 0
+                    entry_log['status'] = 'uploaded'
                 else:
                     fail_count += 1
+                    consecutive_fails += 1
+                    entry_log['status'] = 'upload_failed'
                 os.remove(filepath)
                 print(f'  deleted local copy')
+
+                if consecutive_fails >= MAX_CONSECUTIVE_FAILS:
+                    print(f'\n[abort] {consecutive_fails} consecutive upload failures — stopping run')
+                    aborted = True
 
                 if i < total:
                     print(f'  waiting {UPLOAD_DELAY}s...')
                     time.sleep(UPLOAD_DELAY)
+
+            run_log.append(entry_log)
+
+            if aborted:
+                break
         except Exception as e:
             print(f'  [err] {e}')
             fail_count += 1
+            consecutive_fails += 1
+            entry_log['status'] = f'error: {e}'
+            run_log.append(entry_log)
+            if consecutive_fails >= MAX_CONSECUTIVE_FAILS:
+                print(f'\n[abort] {consecutive_fails} consecutive upload failures — stopping run')
+                aborted = True
+                break
             continue
 
     print(f'\n=== done ===')
+    if aborted:
+        print(f'status: ABORTED after {MAX_CONSECUTIVE_FAILS} consecutive failures')
     print(f'uploaded: {success_count}')
     print(f'skipped:  {skip_count}')
     print(f'failed:   {fail_count}')
     print(f'https://archive.org/details/{identifier}')
 
-    completed[url] = {
+    log_data[url] = {
         'collection': collection_title,
         'identifier': identifier,
-        'uploaded': success_count,
-        'skipped': skip_count,
-        'failed': fail_count,
+        'aborted': aborted,
         'date': time.strftime('%Y-%m-%d'),
+        'videos': run_log,
     }
-    save_completed(completed)
-    print(f'saved to completed.json')
+    save_json(LOG_FILE, log_data)
+    print(f'saved per-video log to {LOG_FILE}')
+
+    if not aborted:
+        completed[url] = {
+            'collection': collection_title,
+            'identifier': identifier,
+            'uploaded': success_count,
+            'skipped': skip_count,
+            'failed': fail_count,
+            'date': time.strftime('%Y-%m-%d'),
+        }
+        save_json(COMPLETED_FILE, completed)
+        print(f'saved to {COMPLETED_FILE}')
+    else:
+        print(f'NOT marked as completed due to abort — fix the issue and re-run')
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
