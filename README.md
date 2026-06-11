@@ -1,8 +1,8 @@
-# Media-to-IA (Github)
+# Media-to-IA (Local)
 
-A tool to mass-archive media from YouTube and other platforms directly to the Internet Archive. Built for preserving historical footage of extreme weather events and other time-sensitive content at scale.
+A tool to mass-archive media from YouTube and other platforms directly to the Internet Archive, run locally or on Android via Pydroid 3. Built for preserving historical footage of extreme weather events and other time-sensitive content at scale.
 
-This branch runs entirely on GitHub Actions — no local setup or device needed.
+This branch is the local/offline version — no GitHub Actions, no `.github/workflows/` folder. Everything runs directly on your own device.
 
 ---
 
@@ -10,9 +10,9 @@ This branch runs entirely on GitHub Actions — no local setup or device needed.
 
 - Downloads from YouTube playlists, single videos, channels, and 1000+ other sites via yt-dlp
 - Uploads directly to Internet Archive as a single organized collection
-- Download → upload → delete loop keeps storage usage minimal
+- Download → upload → delete loop keeps local storage usage minimal
 - Combine multiple playlists/sources into one collection, automatically removing duplicate videos
-- Sorts videos largest-first so big files don't end up stranded near a run's time limit
+- Sorts videos largest-first so big files get handled before smaller ones
 - Skips files over a configurable size limit (useful for avoiding long streams)
 - Optional cap on number of videos processed per run (useful for large channels)
 - Automatically retries failed uploads, and aborts a run early if too many fail in a row
@@ -23,70 +23,87 @@ This branch runs entirely on GitHub Actions — no local setup or device needed.
 
 ## Setup
 
-1. Fork or clone this repo
-2. Add the following secrets under **Settings → Secrets and variables → Actions**:
+### Install dependencies
 
-| Secret | Description |
-|--------|-------------|
-| `IA_EMAIL` | Your archive.org email |
-| `IA_PASSWORD` | Your archive.org password |
-| `YT_COOKIES` | Contents of your YouTube `cookies.txt` (needed to get around bot detection) |
+```bash
+pip install "yt-dlp[default]" internetarchive
+```
 
-3. Go to **Settings → Actions → General → Workflow permissions** and set to **Read and write permissions**
+On Pydroid 3, run this in the Pydroid terminal/pip tab.
+
+### Node.js (for YouTube)
+
+YouTube requires solving a JS challenge to download with cookies. If you have Node.js installed, pass its path in (see usage below). Without Node, most non-age-restricted YouTube videos and other sites will still work fine.
+
+### Configure Internet Archive
+
+```bash
+ia configure
+```
+
+This will ask for your archive.org email and password and store them locally.
+
+### YouTube cookies (optional but recommended)
+
+For age-restricted or region-locked YouTube videos, export your cookies to a `cookies.txt` file (e.g. using a browser extension like "Get cookies.txt"). Pass the path to this file in when running the script.
 
 ---
 
-## Workflows
+## Running
 
-All three workflows are under the **Actions** tab:
+```bash
+python downloader.py "<URL(s)>" "[collection name]" "[max_mb]" "[cookies.txt]" "[node_path]" "[max_videos]"
+```
 
-| Workflow | What it does |
-|----------|--------------|
-| **Download and Upload to Internet Archive** | The main tool — downloads and archives media |
-| **Show Archive Stats** | Prints a summary of everything archived so far |
-| **Retry Failed Uploads** | Re-attempts any videos that previously failed to upload |
+All arguments after the URL are optional.
 
-### Running the main workflow
+| Argument | Description |
+|----------|-------------|
+| URL(s) | One or more URLs. For multiple sources, separate with newlines or commas — duplicates across them are removed automatically |
+| collection name | Name for the archive.org item. **Required** if you pass more than one URL. Leave blank for a single source to use its title |
+| max_mb | Skip files larger than this size in MB (default 200) |
+| cookies.txt | Path to a YouTube cookies file |
+| node_path | Path to your Node.js binary, for YouTube's JS challenge solving |
+| max_videos | Cap on how many videos to process — useful for channels |
 
-1. Go to the **Actions** tab
-2. Select **Download and Upload to Internet Archive**
-3. Click **Run workflow**
-4. Fill in the inputs:
+### Examples
 
-| Input | Description |
-|-------|-------------|
-| URL(s) | One or more URLs — YouTube playlist, single video, channel, or any yt-dlp supported URL. For multiple sources, put each on its own line (or separate with commas) |
-| Collection name | Name for the archive.org item. **Required** if you enter more than one URL. Leave blank for a single source to use its title automatically |
-| Max file size (MB) | Skip files larger than this — default 200, set higher for longer videos |
-| Max videos | Optional cap on how many videos to process — useful when pointing at a channel with a huge upload history |
+```bash
+# YouTube playlist, auto-named collection
+python downloader.py "https://youtube.com/playlist?list=PLxxxxxx"
 
-5. Hit **Run workflow** and let it go
+# Single video with custom collection name
+python downloader.py "https://youtu.be/xxxxx" "Joplin EF5 2011"
 
-Results are posted in the Actions log with a direct link to your archive.org collection when done.
+# With size limit and cookies
+python downloader.py "https://youtube.com/playlist?list=PLxxxxxx" "My Collection" "500" "cookies.txt"
 
-#### Archiving multiple sources as one collection
+# Multiple playlists combined into one deduplicated collection
+python downloader.py "https://youtube.com/playlist?list=AAA,https://youtube.com/playlist?list=BBB" "Combined Collection"
 
-If you enter more than one URL (e.g. two overlapping playlists covering the same event), the tool will:
+# With cookies and Node for full YouTube support
+python downloader.py "https://youtu.be/xxxxx" "My Video" "1000" "cookies.txt" "/usr/bin/node"
+```
 
-1. Fetch the video list from each source
-2. Remove any duplicate videos that appear in more than one source (matched by video ID)
-3. Archive the combined, deduplicated set under a single collection name
+---
 
-This is useful when multiple people have uploaded overlapping footage of the same event across different playlists.
+## Checking stats
 
-### Checking stats
+```bash
+python stats.py
+```
 
-Run **Show Archive Stats**. It reads `completed.json` and `log.json` and prints:
+Prints a summary of everything archived so far: total collections, total videos uploaded/skipped/failed, total size archived in GB, a per-collection breakdown with archive.org links, and a note if anything still needs retrying.
 
-- total collections archived
-- total videos uploaded / skipped / failed
-- total size archived (in GB)
-- a per-collection breakdown with archive.org links
-- a warning if any videos are still failed and need retrying
+---
 
-### Retrying failures
+## Retrying failures
 
-If stats shows failed videos, run **Retry Failed Uploads**. It scans `log.json` for anything marked failed, re-downloads just those specific videos, and re-uploads each one to the correct original archive.org item.
+```bash
+python retry_failed.py "[max_mb]" "[cookies.txt]" "[node_path]"
+```
+
+Scans `log.json` for any videos that previously failed to upload, re-downloads just those, and re-uploads each to its correct original archive.org item.
 
 ---
 
@@ -127,13 +144,19 @@ Running the exact same input again will be skipped automatically. A run that abo
 
 ## log.json
 
-Every run also logs a per-video breakdown, including title, video ID, source URL, file size, and status (`uploaded`, `upload_failed`, `skip_size`, `skip_no_file`, or an error message). This is what `stats.py` and `retry_failed.py` use to report on and fix individual videos without needing to re-run an entire collection.
+Every run also logs a per-video breakdown, including title, video ID, source URL, file size, and status (`uploaded`, `upload_failed`, `skip_size`, `skip_no_file`, or an error message). This is what `stats.py` and `retry_failed.py` use to report on and fix individual videos without re-running an entire collection.
 
 ---
 
 ## Supported sites
 
-Anything yt-dlp supports — YouTube, Twitter/X, TikTok, Reddit, Twitch VODs, Facebook, Vimeo, and 1000+ more. YouTube gets special handling with cookie authentication and JS challenge solving. This might change in the future if new sites are added/become a focus.
+Anything yt-dlp supports — YouTube, Twitter/X, TikTok, Reddit, Twitch VODs, Facebook, Vimeo, and 1000+ more. YouTube gets special handling with cookie authentication and JS challenge solving when cookies/Node are provided.
+
+---
+
+## Storage tips (mobile/low storage devices)
+
+The download → upload → delete loop means only one video sits on disk at a time, so even large playlists won't fill up your storage. If a single video exceeds your `max_mb` limit, it's skipped entirely (not partially downloaded).
 
 ---
 
