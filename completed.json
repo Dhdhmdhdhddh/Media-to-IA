@@ -14,5 +14,13 @@
     "skipped": 2,
     "failed": 0,
     "date": "2026-06-10"
+  },
+  "https://youtube.com/playlist?list=PLrhAdxZmVbP2bpx0nA3KHfi4ioy2-Gob0&si=Vk102Ojc_kwf4Jzr": {
+    "collection": "Enderlin, ND June 20, 2025 EF5 tornado",
+    "identifier": "Enderlin-ND-June-20-2025-EF5-tornado",
+    "uploaded": 0,
+    "skipped": 0,
+    "failed": 46,
+    "date": "2026-06-11"
   }
 }
