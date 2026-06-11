@@ -66,7 +66,7 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add completed.json
+          git add completed.json log.json
           git diff --staged --quiet && exit 0
           git commit -m "update completed.json"
           git fetch origin main
