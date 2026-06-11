@@ -46,5 +46,17 @@
     "skipped": 0,
     "failed": 0,
     "date": "2026-06-11"
+  },
+  "https://youtube.com/playlist?list=PLveRtScq0ZLmfuD9JhXoea_Yfok7daUUD&si=Qcj9ZcVGMTh9MMmc,https://youtube.com/playlist?list=PLveRtScq0ZLldsnMIzZm7jN5GLOmsS47D&si=0y4Vw549wt86eBpd": {
+    "collection": "Interesting and rare tornado videos 9827",
+    "identifier": "Interesting-and-rare-tornado-videos-9827",
+    "sources": [
+      "https://youtube.com/playlist?list=PLveRtScq0ZLmfuD9JhXoea_Yfok7daUUD&si=Qcj9ZcVGMTh9MMmc",
+      "https://youtube.com/playlist?list=PLveRtScq0ZLldsnMIzZm7jN5GLOmsS47D&si=0y4Vw549wt86eBpd"
+    ],
+    "uploaded": 13,
+    "skipped": 2,
+    "failed": 0,
+    "date": "2026-06-11"
   }
 }
