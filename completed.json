@@ -22,5 +22,13 @@
     "skipped": 0,
     "failed": 46,
     "date": "2026-06-11"
+  },
+  "https://youtu.be/XT7CtF5ljxY?is=x55FMgQBXUDZGlbi": {
+    "collection": "Devastating Joplin, Missouri EF-5 Tornado - May 22, 2011",
+    "identifier": "Devastating-Joplin-Missouri-EF-5-Tornado-May-22-2011",
+    "uploaded": 0,
+    "skipped": 0,
+    "failed": 1,
+    "date": "2026-06-11"
   }
 }
