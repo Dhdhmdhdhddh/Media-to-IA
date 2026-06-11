@@ -4,17 +4,21 @@ on:
   workflow_dispatch:
     inputs:
       playlist_url:
-        description: 'URL (YouTube, Twitter, TikTok, etc)'
+        description: 'URL(s) - one per line for multiple sources (will be deduplicated)'
         required: true
         type: string
       collection_name:
-        description: 'Collection name on archive.org (leave blank to use title)'
+        description: 'Collection name on archive.org (required if multiple URLs)'
         required: false
         type: string
       max_filesize_mb:
         description: 'Skip files larger than this size in MB (default 200)'
         required: false
         default: '200'
+        type: string
+      max_videos:
+        description: 'Max videos to process (useful for channels). Leave blank for no limit'
+        required: false
         type: string
 
 jobs:
@@ -60,7 +64,8 @@ jobs:
             "${{ github.event.inputs.collection_name }}" \
             "${{ github.event.inputs.max_filesize_mb }}" \
             "cookies.txt" \
-            "$NODE_BIN"
+            "$NODE_BIN" \
+            "${{ github.event.inputs.max_videos }}"
 
       - name: Commit updated completed.json
         run: |
