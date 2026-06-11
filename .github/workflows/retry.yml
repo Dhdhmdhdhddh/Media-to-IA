@@ -1,0 +1,64 @@
+name: Retry Failed Uploads
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_filesize_mb:
+        description: 'Skip files larger than this size in MB (default 5000)'
+        required: false
+        default: '5000'
+        type: string
+
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: pip install "yt-dlp[default]" internetarchive
+
+      - name: Configure Internet Archive
+        env:
+          IA_EMAIL: ${{ secrets.IA_EMAIL }}
+          IA_PASSWORD: ${{ secrets.IA_PASSWORD }}
+        run: |
+          python -c "import internetarchive as ia; ia.configure(\"$IA_EMAIL\", \"$IA_PASSWORD\")"
+
+      - name: Write YouTube cookies
+        run: echo "${{ secrets.YT_COOKIES }}" > cookies.txt
+
+      - name: Run retry
+        env:
+          IA_EMAIL: ${{ secrets.IA_EMAIL }}
+          IA_PASSWORD: ${{ secrets.IA_PASSWORD }}
+        run: |
+          NODE_BIN=$(which node)
+          python retry_failed.py \
+            "${{ github.event.inputs.max_filesize_mb }}" \
+            "cookies.txt" \
+            "$NODE_BIN"
+
+      - name: Commit updated log.json
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add log.json
+          git diff --staged --quiet && exit 0
+          git commit -m "update log.json after retry"
+          git fetch origin main
+          git rebase origin/main || git rebase --abort
+          git push origin HEAD:main || (git pull --rebase origin main && git push origin HEAD:main)
